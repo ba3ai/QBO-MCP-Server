@@ -6,7 +6,7 @@ from app.crypto import encrypt, decrypt
 from app.qbo import refresh_access_token, qbo_query
 
 async def get_valid_access_token(*, user_id: str, realm_id: str) -> str:
-    conn = db.get_connection(user_id, realm_id)
+    conn = await db.get_connection(user_id, realm_id)
 
     access_enc = conn.get("access_token_enc")
     refresh_enc = conn["refresh_token_enc"]

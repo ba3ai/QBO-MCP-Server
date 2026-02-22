@@ -45,7 +45,7 @@ async def intuit_callback(code: str, realmId: str, state: str | None = None):
 
     user_id = state or get_default_user_id()
 
-    db.upsert_connection(
+    await db.upsert_connection(
         user_id=user_id,
         realm_id=realmId,
         company_name=None,
@@ -59,9 +59,9 @@ async def intuit_callback(code: str, realmId: str, state: str | None = None):
 # ---- Optional REST API helpers (require API key) ----
 
 @app.get("/api/companies")
-def api_companies(request: Request):
+async def api_companies(request: Request):
     user_id = require_api_key(request)
-    return {"companies": db.list_connections(user_id)}
+    return {"companies": await db.list_connections(user_id)}
 
 # ---- Protect MCP and /api with API key via middleware ----
 @app.middleware("http")

@@ -15,9 +15,9 @@ def qbo_connect_company() -> Dict[str, str]:
     return {"connect_url": build_intuit_auth_url(state=user_id)}
 
 @mcp.tool(description="List all connected QBO companies (realmIds) for the current user.")
-def qbo_list_companies() -> Dict[str, Any]:
+async def qbo_list_companies() -> Dict[str, Any]:
     user_id = get_default_user_id()
-    companies = db.list_connections(user_id)
+    companies = await db.list_connections(user_id)
     return {"companies": companies}
 
 @mcp.tool(description="Run a QBO Query SQL against one company (realm_id).")
