@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+httpx
+cryptography
+pydantic
+mcp[cli]
+python-dotenv
+sqlalchemy>=2.0
+aiosqlite
+gunicorn
