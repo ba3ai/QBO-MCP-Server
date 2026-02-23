@@ -1,12 +1,14 @@
 from __future__ import annotations
-import contextlib
+
 from datetime import datetime, timezone, timedelta
-from fastapi import FastAPI, Request, HTTPException
+
+from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse, JSONResponse
+
 from app.auth import require_api_key, get_default_user_id
+from app.crypto import encrypt
 from app.mcp_app import mcp
 from app.qbo import build_intuit_auth_url, exchange_code_for_tokens
-from app.crypto import encrypt
 from app import db
 from app.db import init_db
 
@@ -14,16 +16,20 @@ app = FastAPI()
 
 
 @app.on_event("startup")
-async def _startup():
+async def _startup() -> None:
+    # Ensure SQLite tables exist before MCP tools call into the DB.
     await init_db()
+
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to the QBO MCP Render App!"}
+    return {"message": "Welcome to the QBO MCP Server"}
+
 
 @app.get("/health")
 def health():
     return {"ok": True}
+
 
 # ---- Intuit OAuth routes (NO MCP API KEY required) ----
 
@@ -32,6 +38,7 @@ def intuit_connect():
     # state is used to map token storage to a user_id (single-user default).
     user_id = get_default_user_id()
     return RedirectResponse(build_intuit_auth_url(state=user_id))
+
 
 @app.get("/intuit/callback")
 async def intuit_callback(code: str, realmId: str, state: str | None = None):
@@ -45,6 +52,7 @@ async def intuit_callback(code: str, realmId: str, state: str | None = None):
 
     user_id = state or get_default_user_id()
 
+    # NOTE: db.upsert_connection is async (SQLAlchemy async session) so we MUST await it.
     await db.upsert_connection(
         user_id=user_id,
         realm_id=realmId,
@@ -56,6 +64,7 @@ async def intuit_callback(code: str, realmId: str, state: str | None = None):
 
     return JSONResponse({"connected": True, "realmId": realmId, "user_id": user_id})
 
+
 # ---- Optional REST API helpers (require API key) ----
 
 @app.get("/api/companies")
@@ -63,14 +72,17 @@ async def api_companies(request: Request):
     user_id = require_api_key(request)
     return {"companies": await db.list_connections(user_id)}
 
-# ---- Protect MCP and /api with API key via middleware ----
+
+# ---- Protect /api with API key via middleware ----
+# IMPORTANT: Do NOT protect /mcp when adding the server in ChatGPT with "No Auth",
+# because ChatGPT will not send your custom x-mcp-api-key header.
 @app.middleware("http")
-async def protect_paths(request: Request, call_next):
+async def protect_api_only(request: Request, call_next):
     path = request.url.path
-    if path.startswith("/mcp") or path.startswith("/api"):
-        # Allow docs endpoints if you add them; currently none.
+    if path.startswith("/api"):
         _ = require_api_key(request)
     return await call_next(request)
+
 
 # ---- Mount MCP Streamable HTTP app ----
 # ChatGPT developer mode supports streaming HTTP and SSE. We're using Streamable HTTP.
