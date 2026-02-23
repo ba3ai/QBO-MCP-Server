@@ -35,14 +35,12 @@ def health():
 
 @app.get("/intuit/connect")
 def intuit_connect():
-    # state is used to map token storage to a user_id (single-user default).
     user_id = get_default_user_id()
     return RedirectResponse(build_intuit_auth_url(state=user_id))
 
 
 @app.get("/intuit/callback")
 async def intuit_callback(code: str, realmId: str, state: str | None = None):
-    # Exchange code -> tokens
     token_resp = await exchange_code_for_tokens(code)
 
     access_token = token_resp["access_token"]
@@ -52,7 +50,6 @@ async def intuit_callback(code: str, realmId: str, state: str | None = None):
 
     user_id = state or get_default_user_id()
 
-    # NOTE: db.upsert_connection is async (SQLAlchemy async session) so we MUST await it.
     await db.upsert_connection(
         user_id=user_id,
         realm_id=realmId,
@@ -84,6 +81,13 @@ async def protect_api_only(request: Request, call_next):
     return await call_next(request)
 
 
+# ---- MCP path helpers ----
+# ChatGPT often calls /mcp/ (with trailing slash).
+@app.get("/mcp")
+def mcp_redirect():
+    return RedirectResponse(url="/mcp/")
+
+
 # ---- Mount MCP Streamable HTTP app ----
-# ChatGPT developer mode supports streaming HTTP and SSE. We're using Streamable HTTP.
-app.mount("/mcp", mcp.streamable_http_app())
+# Mount at /mcp/ so /mcp/ is not 404.
+app.mount("/mcp/", mcp.streamable_http_app())
